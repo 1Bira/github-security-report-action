@@ -12,6 +12,17 @@ jobs:
       - name: Checkout Sources
         uses: actions/checkout@v3
 
+      - name: Verify app2
+        run: | 
+          ls
+          cd ..
+          pwd
+          ls
+          cd samples/sarif/peter-murray/advanced-security-java
+          pwd
+          ls
+          
+      
       - name: Invoke Action
         uses: ./
         with:
