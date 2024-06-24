@@ -41,6 +41,7 @@ function getCodeScanning(octokit: Octokit,
   return octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
     //@ts-ignore
     .then((alerts: CodeScanningListAlertsForRepoResponseData) => {
+      core.info(`[✅] GET code-scanning.`);
       const results: CodeScanningResults = new CodeScanningResults();
 
       alerts.forEach((alert: CodeScanningData) => {
@@ -50,6 +51,6 @@ function getCodeScanning(octokit: Octokit,
       return results;
     })
     .catch(function(err){
-      core.setFailed("There was an error in code-scanning. Please check the logs: " + err);
+      core.setFailed("[⚠️] There was an error in code-scanning. Please check the logs: " + err);
     });
 }
