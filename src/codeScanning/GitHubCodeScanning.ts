@@ -41,14 +41,16 @@ function getCodeScanning(octokit: Octokit,
       state: state
     };
 
-    octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
+    results = octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
       //@ts-ignore
       .then((alerts: CodeScanningListAlertsForRepoResponseData) => {
-        //const results: CodeScanningResults = new CodeScanningResults();
+        const res: CodeScanningResults = new CodeScanningResults();
 
         alerts.forEach((alert: CodeScanningData) => {
           results.addCodeScanningAlert(new CodeScanningAlert(alert));
         });
+
+        return res;
     });
   } catch (error) {
     core.setFailed("There was an error. Please check the logs" + error);
