@@ -11,8 +11,8 @@ describe('GitHubDependencies', function ()  {
   this.timeout(10 * 1000);
 
   const testRepo = {
-    owner: 'octodemo',
-    repo: 'demo-vulnerabilities-ghas'
+    owner: '1bira',
+    repo: 'demo-csharp'
   };
 
   let ghDeps: GitHubDependencies;
