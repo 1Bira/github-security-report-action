@@ -25,7 +25,7 @@ jobs:
         with:
           token: ${{ secrets.SECURITY_TOKEN }}
           sarifReportDir: ./samples/sarif/peter-murray/advanced-security-java
-          outputDir: .
+          outputDir: ./samples/sarif/peter-murray/advanced-security-java
 
       - name: Verify app2
         run: | 
