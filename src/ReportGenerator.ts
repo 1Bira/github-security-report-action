@@ -3,7 +3,7 @@ import DataCollector from './DataCollector';
 import Template from './templating/Template';
 import { createPDF } from './pdf/pdfWriter';
 import * as path from 'path';
-
+import * as core from '@actions/core';
 import { mkdirP } from '@actions/io';
 
 export type ReportGeneratorConfig = {

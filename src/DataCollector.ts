@@ -4,6 +4,7 @@ import GitHubDependencies from './dependencies/GitHubDependencies';
 import SarifReportFinder from './sarif/SarifReportFinder';
 import ReportData from './templating/ReportData';
 import { CollectedData } from './templating/ReportTypes';
+import * as core from '@actions/core';
 
 
 type Repo = {

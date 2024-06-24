@@ -5,8 +5,10 @@ import { Octokit } from '@octokit/rest';
 
 async function run(): Promise<void> {
   try {
+    core.info(`[✅] Start Action]`);
     const token = getRequiredInputValue('token');
 
+    core.info(`[✅] Report Generator]`);
     const generator = new ReportGenerator({
       repository: getRequiredInputValue('repository'),
       octokit: new Octokit({auth: token}),
@@ -22,6 +24,7 @@ async function run(): Promise<void> {
     const file = await generator.run();
     console.log(file);
   } catch (err) {
+    core.warning(`Error: ${err.message}`);
     core.setFailed(err.message);
   }
 }
