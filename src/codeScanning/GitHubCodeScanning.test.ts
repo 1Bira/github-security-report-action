@@ -5,9 +5,14 @@ import { getGitHubToken } from '../testUtils';
 
 describe('GitHubDependencies', () => {
 
-  const testRepo = {
+  /*const testRepo = {
     owner: 'octodemo',
     repo: 'demo-vulnerabilities-ghas'
+  };*/
+
+  const testRepo = {
+    owner: '1bira',
+    repo: 'demo-csharp'
   };
 
   const ghasReportingRepo = {
