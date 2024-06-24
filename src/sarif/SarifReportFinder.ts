@@ -25,7 +25,7 @@ export default class SarifReportFinder {
       throw new Error(` [✅] SARIF Finder, path "${dir}", does not exist.`);
     }
 
-    core.info(`SARIF File Finder, processing: ${dir}`);
+    core.info(` [✅] SARIF File Finder, processing: ${dir}`);
     if (fs.lstatSync(dir).isDirectory()) {
       core.info(` [✅] is a directory, looking for files`);
 

@@ -1,6 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { CodeScanningListAlertsForRepoResponseData, Endpoints } from '@octokit/types';
-
+import * as core from "@actions/core";
 import CodeScanningAlert, { CodeScanningData } from './CodeScanningAlert';
 import CodeScanningResults from './CodeScanningResults';
 
@@ -32,21 +32,26 @@ function getCodeScanning(octokit: Octokit,
                          repo: Repo,
                          state: 'open' | 'fixed' | 'dismissed'): Promise<CodeScanningResults> {
 
-  const params: listCodeScanningAlertsParameters = {
-    owner: repo.owner,
-    repo: repo.repo,
-    state: state
-  };
+  let results: CodeScanningResults = new CodeScanningResults();
 
-  return octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
-    //@ts-ignore
-    .then((alerts: CodeScanningListAlertsForRepoResponseData) => {
-      const results: CodeScanningResults = new CodeScanningResults();
+  try {
+    const params: listCodeScanningAlertsParameters = {
+      owner: repo.owner,
+      repo: repo.repo,
+      state: state
+    };
 
-      alerts.forEach((alert: CodeScanningData) => {
-        results.addCodeScanningAlert(new CodeScanningAlert(alert));
-      });
+    octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
+      //@ts-ignore
+      .then((alerts: CodeScanningListAlertsForRepoResponseData) => {
+        //const results: CodeScanningResults = new CodeScanningResults();
 
-      return results;
+        alerts.forEach((alert: CodeScanningData) => {
+          results.addCodeScanningAlert(new CodeScanningAlert(alert));
+        });
     });
+  } catch (error) {
+    core.setFailed("There was an error. Please check the logs" + error);
+  }
+  return results;
 }

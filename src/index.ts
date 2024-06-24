@@ -12,7 +12,7 @@ async function run(): Promise<void> {
     const generator = new ReportGenerator({
       repository: getRequiredInputValue('repository'),
       octokit: new Octokit({auth: token}),
-
+      
       sarifReportDirectory: getRequiredInputValue('sarifReportDir'),
       outputDirectory: getRequiredInputValue('outputDir'),
 
@@ -23,6 +23,7 @@ async function run(): Promise<void> {
 
     const file = await generator.run();
     console.log(file);
+    core.info(`[✅] End Action]`);
   } catch (err) {
     core.warning(`Error: ${err.message}`);
     core.setFailed(err.message);
