@@ -26,6 +26,14 @@ jobs:
           token: ${{ secrets.SECURITY_TOKEN }}
           sarifReportDir: ./samples/sarif/peter-murray/advanced-security-java
           outputDir: .
+
+      - name: Verify app2
+        run: | 
+          ls
+          pwd
+          cd samples/sarif/peter-murray/advanced-security-java
+          pwd
+          ls
           
       - name: Upload Artifacts
         uses: actions/upload-artifact@v2
