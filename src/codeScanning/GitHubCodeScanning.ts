@@ -32,28 +32,24 @@ function getCodeScanning(octokit: Octokit,
                          repo: Repo,
                          state: 'open' | 'fixed' | 'dismissed'): Promise<CodeScanningResults> {
 
-  let results: CodeScanningResults = new CodeScanningResults();
+  const params: listCodeScanningAlertsParameters = {
+    owner: repo.owner,
+    repo: repo.repo,
+    state: state
+  };
 
-  try {
-    const params: listCodeScanningAlertsParameters = {
-      owner: repo.owner,
-      repo: repo.repo,
-      state: state
-    };
+  return octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
+    //@ts-ignore
+    .then((alerts: CodeScanningListAlertsForRepoResponseData) => {
+      const results: CodeScanningResults = new CodeScanningResults();
 
-    results = octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
-      //@ts-ignore
-      .then((alerts: CodeScanningListAlertsForRepoResponseData) => {
-        const res: CodeScanningResults = new CodeScanningResults();
+      alerts.forEach((alert: CodeScanningData) => {
+        results.addCodeScanningAlert(new CodeScanningAlert(alert));
+      });
 
-        alerts.forEach((alert: CodeScanningData) => {
-          results.addCodeScanningAlert(new CodeScanningAlert(alert));
-        });
-
-        return res;
+      return results;
+    })
+    .catch(function(err){
+      core.setFailed("There was an error in code-scanning. Please check the logs: " + err);
     });
-  } catch (error) {
-    core.setFailed("There was an error. Please check the logs" + error);
-  }
-  return results;
 }
