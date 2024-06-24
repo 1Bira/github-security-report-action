@@ -56,7 +56,7 @@ function loadFileContents(file: string): Promise<SarifFile> {
         .then(content => {
           fileHandle.close();
           try {
-            core.info(`Failed to parse JSON from SARIF file '${file}'`);
+            core.info(`Parse JSON from SARIF file '${file}'`);
             return JSON.parse(content.toString('utf8'));
           } catch (err) {
             throw new Error(`Failed to parse JSON from SARIF file '${file}': ${err}`);
