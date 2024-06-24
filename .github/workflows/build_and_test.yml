@@ -18,7 +18,7 @@ jobs:
           node-version: 12
 
       - name: Verify Dependencies
-        run: npm outdated
+        run: npm install -g npm-check-updates & ncu
 
       - name: Install Dependencies
         run: npm ci
