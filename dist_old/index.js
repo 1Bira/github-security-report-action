@@ -1,1177 +1,8 @@
-require('./sourcemap-register.js');module.exports =
+module.exports =
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 9166:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const GitHubCodeScanning_1 = __importDefault(__nccwpck_require__(6682));
-const GitHubDependencies_1 = __importDefault(__nccwpck_require__(9243));
-const SarifReportFinder_1 = __importDefault(__nccwpck_require__(4954));
-const ReportData_1 = __importDefault(__nccwpck_require__(6302));
-class DataCollector {
-    constructor(octokit, repo) {
-        if (!octokit) {
-            throw new Error('A GitHub Octokit client needs to be provided');
-        }
-        this.octokit = octokit;
-        if (!repo) {
-            throw new Error('A GitHub repository must be provided');
-        }
-        const parts = repo.split('/');
-        this.repo = {
-            owner: parts[0],
-            repo: parts[1]
-        };
-    }
-    getPayload(sarifReportDir) {
-        const ghDeps = new GitHubDependencies_1.default(this.octokit), codeScanning = new GitHubCodeScanning_1.default(this.octokit), sarifFinder = new SarifReportFinder_1.default(sarifReportDir);
-        return Promise.all([
-            sarifFinder.getSarifFiles(),
-            ghDeps.getAllDependencies(this.repo),
-            ghDeps.getAllVulnerabilities(this.repo),
-            codeScanning.getOpenCodeScanningAlerts(this.repo),
-            codeScanning.getClosedCodeScanningAlerts(this.repo),
-        ]).then(results => {
-            const data = {
-                github: this.repo,
-                sarifReports: results[0],
-                dependencies: results[1],
-                vulnerabilities: results[2],
-                codeScanningOpen: results[3],
-                codeScanningClosed: results[4],
-            };
-            return new ReportData_1.default(data);
-        });
-    }
-}
-exports.default = DataCollector;
-
-
-/***/ }),
-
-/***/ 637:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const DataCollector_1 = __importDefault(__nccwpck_require__(9166));
-const Template_1 = __importDefault(__nccwpck_require__(725));
-const pdfWriter_1 = __nccwpck_require__(3174);
-const path = __importStar(__nccwpck_require__(5622));
-const io_1 = __nccwpck_require__(7351);
-class ReportGenerator {
-    constructor(config) {
-        this.config = config;
-    }
-    run() {
-        const config = this.config;
-        const collector = new DataCollector_1.default(config.octokit, config.repository);
-        return collector.getPayload(config.sarifReportDirectory)
-            .then(reportData => {
-            const reportTemplate = new Template_1.default(config.templating.directory);
-            return reportTemplate.render(reportData.getJSONPayload(), config.templating.name);
-        })
-            .then(html => {
-            return io_1.mkdirP(config.outputDirectory)
-                .then(() => {
-                return pdfWriter_1.createPDF(html, path.join(config.outputDirectory, 'summary.pdf'));
-            });
-        });
-    }
-}
-exports.default = ReportGenerator;
-
-
-/***/ }),
-
-/***/ 463:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-class CodeScanningAlert {
-    constructor(data) {
-        this.data = data;
-    }
-    get id() {
-        return this.data.number;
-    }
-    get url() {
-        return this.data.html_url;
-    }
-    get created() {
-        return this.data.created_at;
-    }
-    get dismissed() {
-        if (!this.data.dismissed_at) {
-            return null;
-        }
-        const result = {
-            at: this.data.dismissed_at,
-            reason: this.data.dismissed_reason,
-        };
-        if (this.data.dismissed_by) {
-            result.by = {
-                login: this.data.dismissed_by.login,
-                type: this.data.dismissed_by.type,
-                id: this.data.dismissed_by.id,
-            };
-        }
-        return result;
-    }
-    get severity() {
-        // return this.rule ? this.rule.severity : null;
-        return this.rule.severity;
-    }
-    get state() {
-        return this.data.state;
-    }
-    get rule() {
-        return this.data.rule;
-    }
-    get ruleId() {
-        return this.rule.id;
-    }
-    get ruleDescription() {
-        return this.rule.description;
-    }
-    get toolName() {
-        return this.data.tool ? this.data.tool.name : null;
-    }
-    get toolVersion() {
-        return this.data.tool ? this.data.tool.version : null;
-    }
-}
-exports.default = CodeScanningAlert;
-
-
-/***/ }),
-
-/***/ 1154:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-class CodeScanningResults {
-    constructor() {
-        this.data = [];
-    }
-    addCodeScanningAlert(alert) {
-        this.data.push(alert);
-    }
-    getTools() {
-        const result = [];
-        this.data.forEach(alert => {
-            const toolName = alert.toolName;
-            if (toolName && result.indexOf(toolName) === -1) {
-                result.push(toolName);
-            }
-        });
-        return result;
-    }
-    getCodeQLScanningAlerts() {
-        return this.data.filter(value => {
-            //TODO this is now reporting CodeQL command-line toolchain as the name of the tool!
-            // Need to follow up on this with GHAS team on what to expect in the future.
-            return `${value.toolName}`.toLowerCase().startsWith('codeql');
-        });
-    }
-}
-exports.default = CodeScanningResults;
-
-
-/***/ }),
-
-/***/ 6682:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const CodeScanningAlert_1 = __importDefault(__nccwpck_require__(463));
-const CodeScanningResults_1 = __importDefault(__nccwpck_require__(1154));
-class GitHubCodeScanning {
-    constructor(octokit) {
-        this.octokit = octokit;
-    }
-    getOpenCodeScanningAlerts(repo) {
-        return getCodeScanning(this.octokit, repo, 'open');
-    }
-    getClosedCodeScanningAlerts(repo) {
-        return getCodeScanning(this.octokit, repo, 'dismissed');
-    }
-}
-exports.default = GitHubCodeScanning;
-function getCodeScanning(octokit, repo, state) {
-    const params = {
-        owner: repo.owner,
-        repo: repo.repo,
-        state: state
-    };
-    return octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
-        //@ts-ignore
-        .then((alerts) => {
-        const results = new CodeScanningResults_1.default();
-        alerts.forEach((alert) => {
-            results.addCodeScanningAlert(new CodeScanningAlert_1.default(alert));
-        });
-        return results;
-    });
-}
-
-
-/***/ }),
-
-/***/ 2096:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-class Dependency {
-    constructor(data) {
-        this.data = data;
-    }
-    get name() {
-        return this.data.node.packageName;
-    }
-    get packageType() {
-        return this.data.node.packageManager;
-    }
-    get version() {
-        return this.data.node.requirements;
-    }
-}
-exports.default = Dependency;
-
-
-/***/ }),
-
-/***/ 9688:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const Dependency_1 = __importDefault(__nccwpck_require__(2096));
-class DependencySet {
-    constructor(data) {
-        this.data = data;
-    }
-    get filename() {
-        return this.data.node.filename;
-    }
-    get count() {
-        return this.data.node.dependenciesCount || 0;
-    }
-    get path() {
-        return this.data.node.blobPath;
-    }
-    get isValid() {
-        return this.parsable && !this.exceededMaxSize;
-    }
-    get parsable() {
-        return this.data.node.parseable;
-    }
-    get exceededMaxSize() {
-        return this.data.node.exceedsMaxSize;
-    }
-    get dependencies() {
-        const deps = this.data.node.dependencies.edges;
-        if (deps) {
-            return deps.map(dep => {
-                return new Dependency_1.default(dep);
-            });
-        }
-        return [];
-    }
-}
-exports.default = DependencySet;
-
-
-/***/ }),
-
-/***/ 8151:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.QUERY_DEPENDENCY_GRAPH = exports.QUERY_SECURITY_VULNERABILITIES = void 0;
-exports.QUERY_SECURITY_VULNERABILITIES = `
-query users($organizationName: String!, $repositoryName: String!, $cursor: String) {
-
-  repository(owner: $organizationName, name: $repositoryName) {
-    vulnerabilityAlerts(first: 100, after: $cursor) {
-      totalCount
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      nodes {
-        id
-        createdAt
-        dismisser {
-          login
-          name
-        }
-        dismissedAt
-        dismissReason
-        vulnerableManifestFilename
-        vulnerableRequirements
-        vulnerableManifestPath
-        securityVulnerability{
-          package {
-            ecosystem
-            name
-          }
-          severity
-          vulnerableVersionRange
-        }
-        securityAdvisory{
-          databaseId
-          id
-          summary
-          severity
-          description
-          ghsaId
-          identifiers {
-            type
-            value
-          }
-          permalink
-          publishedAt
-        }
-      }
-    }
-  }
-}
-`;
-exports.QUERY_DEPENDENCY_GRAPH = `
-query ($organizationName: String!, $repositoryName: String!, $cursor: String){
-  repository(owner: $organizationName name: $repositoryName) {
-    name
-    dependencyGraphManifests(first: 100, after: $cursor) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      totalCount
-      edges {
-        node {
-          filename
-          dependenciesCount
-          blobPath
-          exceedsMaxSize
-          parseable
-          dependencies{
-            edges {
-              node {
-                packageName
-                packageManager
-                requirements
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-`;
-
-
-/***/ }),
-
-/***/ 9243:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const DependencyTypes_1 = __nccwpck_require__(8151);
-const Vulnerability_1 = __importDefault(__nccwpck_require__(748));
-const DependencySet_1 = __importDefault(__nccwpck_require__(9688));
-class GitHubDependencies {
-    constructor(octokit) {
-        this.octokit = octokit;
-    }
-    getAllVulnerabilities(repo) {
-        return __awaiter(this, void 0, void 0, function* () {
-            function extractVulnerabilityAlerts(data) {
-                return data.repository.vulnerabilityAlerts.nodes;
-            }
-            const data = yield this.getPaginatedQuery(DependencyTypes_1.QUERY_SECURITY_VULNERABILITIES, { organizationName: repo.owner, repositoryName: repo.repo }, 'repository.vulnerabilityAlerts.pageInfo', extractVulnerabilityAlerts);
-            return data.map(val => {
-                return new Vulnerability_1.default(val);
-            });
-        });
-    }
-    getAllDependencies(repo) {
-        return __awaiter(this, void 0, void 0, function* () {
-            function extractDependencySetData(data) {
-                return data.repository.dependencyGraphManifests.edges;
-            }
-            const data = yield this.getPaginatedQuery(DependencyTypes_1.QUERY_DEPENDENCY_GRAPH, { organizationName: repo.owner, repositoryName: repo.repo }, 'repository.dependencyGraphManifests.pageInfo', extractDependencySetData, { accept: 'application/vnd.github.hawkgirl-preview+json' });
-            return data.map(node => {
-                return new DependencySet_1.default(node);
-            });
-        });
-    }
-    getPaginatedQuery(query, parameters, pageInfoPath, extractResultsFn, headers) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const octokit = this.octokit, results = [], queryParameters = Object.assign({ cursor: null }, parameters);
-            let hasNextPage = false;
-            do {
-                const graphqlParameters = buildGraphQLParameters(query, parameters, headers), queryResult = yield octokit.graphql(graphqlParameters);
-                // @ts-ignore
-                const extracted = extractResultsFn(queryResult);
-                // @ts-ignore
-                results.push(...extracted);
-                const pageInfo = getObject(queryResult, ...pageInfoPath.split('.'));
-                hasNextPage = pageInfo ? pageInfo.hasNextPage : false;
-                if (hasNextPage) {
-                    queryParameters.cursor = pageInfo.endCursor;
-                }
-            } while (hasNextPage);
-            return results;
-        });
-    }
-}
-exports.default = GitHubDependencies;
-function buildGraphQLParameters(query, parameters, headers) {
-    const result = Object.assign(Object.assign({}, (parameters || {})), { query: query });
-    if (headers) {
-        result.headers = headers;
-    }
-    return result;
-}
-function getObject(target, ...path) {
-    if (target !== null && target !== undefined) {
-        const value = target[path[0]];
-        if (path.length > 1) {
-            return getObject(value, ...path.slice(1));
-        }
-        else {
-            return value;
-        }
-    }
-    return null;
-}
-
-
-/***/ }),
-
-/***/ 748:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-class Vulnerability {
-    constructor(data) {
-        this.data = data;
-    }
-    get created() {
-        return this.data.createdAt;
-    }
-    get isDismissed() {
-        return !!this.data.dismisser;
-    }
-    get dismissedBy() {
-        return {
-            user: {
-                login: this.data.dismisser.login,
-                name: this.data.dismisser.name
-            },
-            reason: this.data.dismissReason,
-            at: this.data.dismissedAt,
-        };
-    }
-    get severity() {
-        return this.data.securityVulnerability.severity;
-    }
-    get vulnerability() {
-        return Object.assign({}, this.data.securityVulnerability);
-    }
-    get advisory() {
-        return Object.assign({}, this.data.securityAdvisory);
-    }
-    get source() {
-        return {
-            manifest: this.data.vulnerableManifestFilename,
-            version: this.data.vulnerableRequirements,
-            path: this.data.vulnerableManifestPath
-        };
-    }
-    get publishedAt() {
-        return this.advisory.publishedAt;
-    }
-    get link() {
-        return this.advisory.permalink;
-    }
-}
-exports.default = Vulnerability;
-
-
-/***/ }),
-
-/***/ 4822:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const ReportGenerator_1 = __importDefault(__nccwpck_require__(637));
-const core = __importStar(__nccwpck_require__(2186));
-const rest_1 = __nccwpck_require__(5375);
-function run() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const token = getRequiredInputValue('token');
-            const generator = new ReportGenerator_1.default({
-                repository: getRequiredInputValue('repository'),
-                octokit: new rest_1.Octokit({ auth: token }),
-                sarifReportDirectory: getRequiredInputValue('sarifReportDir'),
-                outputDirectory: getRequiredInputValue('outputDir'),
-                templating: {
-                    name: 'summary'
-                }
-            });
-            const file = yield generator.run();
-            console.log(file);
-        }
-        catch (err) {
-            core.setFailed(err.message);
-        }
-    });
-}
-run();
-function getRequiredInputValue(key) {
-    return core.getInput(key, { required: true });
-}
-
-
-/***/ }),
-
-/***/ 3174:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createPDF = void 0;
-const puppeteer = __nccwpck_require__(3435);
-function createPDF(html, file) {
-    const fetcher = puppeteer.createBrowserFetcher();
-    return fetcher.download('782078') //TODO need to store and inject this
-        .then(revisionInfo => {
-        return puppeteer.launch({ executablePath: revisionInfo.executablePath })
-            .then(browser => {
-            return browser.newPage()
-                .then(page => {
-                return page.setContent(html)
-                    .then(() => {
-                    return page.pdf({ path: file, format: 'A4' });
-                });
-            })
-                .then(() => {
-                return browser.close();
-            });
-        })
-            .then(() => {
-            return file;
-        });
-    });
-}
-exports.createPDF = createPDF;
-;
-
-
-/***/ }),
-
-/***/ 3648:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const CWE_REGEX = /external\/cwe\/(cwe-.*)/;
-class CodeScanningRule {
-    constructor(sarifRule) {
-        this.sarifRule = sarifRule;
-        this.cwes = getCWEs(sarifRule.properties.tags);
-    }
-    get id() {
-        return this.sarifRule.id;
-    }
-    get name() {
-        return this.sarifRule.name;
-    }
-    get shortDescription() {
-        return this.sarifRule.shortDescription.text;
-    }
-    get description() {
-        return this.sarifRule.fullDescription.text;
-    }
-    get tags() {
-        return this.sarifRule.properties.tags;
-    }
-    get severity() {
-        return this.sarifRule.properties['problem.severity'];
-    }
-    get precision() {
-        return this.sarifRule.properties.precision;
-    }
-    get kind() {
-        return this.sarifRule.properties.kind;
-    }
-    get defaultConfigurationLevel() {
-        return this.sarifRule.defaultConfiguration.level;
-    }
-}
-exports.default = CodeScanningRule;
-function getCWEs(tags) {
-    const cwes = [];
-    if (tags) {
-        tags.forEach(tag => {
-            const match = CWE_REGEX.exec(tag);
-            if (match) {
-                // @ts-ignore
-                cwes.push(match[1]);
-            }
-        });
-    }
-    return cwes.sort();
-}
-
-
-/***/ }),
-
-/***/ 876:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const CodeScanningRule_1 = __importDefault(__nccwpck_require__(3648));
-class SarifReport {
-    constructor(data) {
-        this.data = data;
-        this.rules = getRules(data) || [];
-    }
-    get cweList() {
-        const result = this.rules.reduce((cwes, rule) => {
-            return cwes.concat(rule.cwes);
-        }, []);
-        return unique(result).sort();
-    }
-}
-exports.default = SarifReport;
-function getRules(report) {
-    let sarifRules = null;
-    if (report.version === '2.1.0') {
-        if (report.runs) {
-            report.runs.forEach(run => {
-                if (run.tool.driver.name === 'CodeQL') { //TODO could support other tools
-                    sarifRules = run.tool.driver.rules;
-                }
-            });
-        }
-    }
-    else {
-        throw new Error(`Unsupported version: ${report.version}`);
-    }
-    return getAppliedRuleDetails(sarifRules);
-}
-function getAppliedRuleDetails(sarifRules) {
-    if (sarifRules) {
-        return sarifRules.map(rule => {
-            return new CodeScanningRule_1.default(rule);
-        });
-    }
-    return null;
-}
-function unique(array) {
-    return array.filter((val, idx, self) => {
-        return self.indexOf(val) === idx;
-    });
-}
-
-
-/***/ }),
-
-/***/ 4954:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const path = __importStar(__nccwpck_require__(5622));
-const fs = __importStar(__nccwpck_require__(5747));
-const SarifReport_1 = __importDefault(__nccwpck_require__(876));
-class SarifReportFinder {
-    constructor(dir) {
-        this.dir = dir;
-    }
-    getSarifFiles() {
-        const dir = this.dir, promises = [];
-        if (!fs.existsSync(dir)) {
-            throw new Error(`SARIF Finder, path "${dir}", does not exist.`);
-        }
-        console.log(`SARIF File Finder, processing: ${dir}`);
-        if (fs.lstatSync(dir).isDirectory()) {
-            console.log(`  is a directory, looking for files`);
-            const files = fs.readdirSync(dir) // TODO use promises here
-                .filter(f => f.endsWith('.sarif'))
-                .map(f => path.resolve(dir, f));
-            console.log(`  SARIF files detected: ${JSON.stringify(files)}`);
-            if (files) {
-                files.forEach(f => {
-                    promises.push(loadFileContents(f));
-                });
-            }
-        }
-        if (promises.length > 0) {
-            return Promise.all(promises);
-        }
-        else {
-            return Promise.resolve([]);
-        }
-    }
-}
-exports.default = SarifReportFinder;
-function loadFileContents(file) {
-    return fs.promises.open(file, 'r')
-        .then(fileHandle => {
-        return fileHandle.readFile()
-            .then(content => {
-            fileHandle.close();
-            try {
-                return JSON.parse(content.toString('utf8'));
-            }
-            catch (err) {
-                throw new Error(`Failed to parse JSON from SARIF file '${file}': ${err}`);
-            }
-        })
-            .then(data => {
-            return {
-                file: file,
-                payload: new SarifReport_1.default(data),
-            };
-        });
-    });
-}
-
-
-/***/ }),
-
-/***/ 6302:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-class ReportData {
-    constructor(data) {
-        this.data = data || {};
-    }
-    get githubRepo() {
-        return this.data.github || {};
-    }
-    get vulnerabilities() {
-        return this.data.vulnerabilities || [];
-    }
-    get dependencies() {
-        return this.data.dependencies || [];
-    }
-    get openDependencyVulnerabilities() {
-        return this.vulnerabilities.filter(vuln => {
-            return !vuln.isDismissed;
-        });
-    }
-    get closedDependencyVulnerabilities() {
-        return this.vulnerabilities.filter(vuln => {
-            return vuln.isDismissed;
-        });
-    }
-    get openCodeScanResults() {
-        return this.data.codeScanningOpen || {};
-    }
-    get closedCodeScanResults() {
-        return this.data.codeScanningClosed || {};
-    }
-    get sarifReports() {
-        return this.data.sarifReports || [];
-    }
-    get codeScanningRules() {
-        const result = {};
-        this.sarifReports.forEach(report => {
-            // Each report is an object of {file, payload} keys
-            const rules = report.payload.rules;
-            if (rules) {
-                rules.forEach(rule => {
-                    result[rule.id] = rule;
-                });
-            }
-        });
-        return result;
-    }
-    getJSONPayload() {
-        const data = {
-            github: this.githubRepo,
-            metadata: {
-                created: new Date().toISOString(),
-            },
-            sca: {
-                dependencies: this.getDependencySummary(),
-                vulnerabilities: {
-                    total: this.openDependencyVulnerabilities.length,
-                    bySeverity: this.getVulnerabilitiesBySeverity()
-                },
-            },
-            scanning: {
-                rules: this.getAppliedCodeScanningRules(),
-                cwe: this.getCWECoverage() || {},
-                results: this.getCodeScanSummary(),
-            }
-        };
-        return data;
-    }
-    getCWECoverage() {
-        const rules = this.getAppliedCodeScanningRules();
-        if (rules) {
-            const result = {};
-            rules.forEach(rule => {
-                const cwes = rule.cwe;
-                if (cwes) {
-                    cwes.forEach(cwe => {
-                        if (!result[cwe]) {
-                            result[cwe] = [];
-                        }
-                        result[cwe].push(rule);
-                    });
-                }
-            });
-            return {
-                cweToRules: result,
-                cwes: Object.keys(result)
-            };
-        }
-        return null;
-    }
-    getDependencySummary() {
-        const unprocessed = [], processed = [], dependencies = {};
-        let totalDeps = 0;
-        this.dependencies.forEach(depSet => {
-            totalDeps += depSet.count;
-            const manifest = {
-                filename: depSet.filename,
-                path: depSet.path
-            };
-            if (depSet.isValid) {
-                processed.push(manifest);
-            }
-            else {
-                unprocessed.push(manifest);
-            }
-            const identifiedDeps = depSet.dependencies;
-            if (identifiedDeps) {
-                identifiedDeps.forEach(dep => {
-                    const type = dep.packageType.toLowerCase();
-                    if (!dependencies[type]) {
-                        dependencies[type] = [];
-                    }
-                    dependencies[type].push({
-                        name: dep.name,
-                        type: dep.packageType,
-                        version: dep.version,
-                    });
-                });
-            }
-        });
-        return {
-            manifests: {
-                processed: processed,
-                unprocessed: unprocessed,
-            },
-            totalDependencies: totalDeps,
-            dependencies: dependencies
-        };
-    }
-    getVulnerabilitiesBySeverity() {
-        const result = {};
-        // Obtain third party artifacts ranked by severity
-        const vulnerabilities = this.openDependencyVulnerabilities;
-        vulnerabilities.forEach(vulnerability => {
-            const severity = vulnerability.severity.toLowerCase();
-            if (!result[severity]) {
-                result[severity] = [];
-            }
-            result[severity].push(vulnerability);
-        });
-        return result;
-    }
-    getAppliedCodeScanningRules() {
-        const rules = this.codeScanningRules;
-        if (rules) {
-            return Object.values(rules).map(rule => {
-                return getRuleData(rule);
-            });
-        }
-        return [];
-    }
-    getCodeScanSummary() {
-        const open = this.openCodeScanResults, closed = this.closedCodeScanResults, rules = this.codeScanningRules;
-        const data = {
-            open: generateAlertSummary(open, rules),
-            closed: generateAlertSummary(closed, rules),
-        };
-        return data;
-    }
-}
-exports.default = ReportData;
-function generateAlertSummary(open, rules) {
-    const result = {};
-    let total = 0;
-    open.getCodeQLScanningAlerts().forEach(codeScanAlert => {
-        const severity = codeScanAlert.severity, matchedRule = rules ? rules[codeScanAlert.ruleId] : null;
-        const summary = {
-            tool: codeScanAlert.toolName,
-            name: codeScanAlert.ruleDescription,
-            state: codeScanAlert.state,
-            created: codeScanAlert.created,
-            url: codeScanAlert.url,
-            rule: {
-                id: codeScanAlert.ruleId,
-            }
-        };
-        if (matchedRule) {
-            summary.rule.details = matchedRule;
-        }
-        if (!result[severity]) {
-            result[severity] = [];
-        }
-        result[severity].push(summary);
-        total++;
-    });
-    return {
-        total: total,
-        scans: result
-    };
-}
-function getRuleData(rule) {
-    return {
-        name: rule.name,
-        //TODO maybe id?
-        severity: rule.severity,
-        precision: rule.precision,
-        kind: rule.kind,
-        shortDescription: rule.shortDescription,
-        description: rule.description,
-        tags: rule.tags,
-        cwe: rule.cwes,
-    };
-}
-//TODO this was not used
-// function getVulnerability(vuln) {
-//   if (!vuln) {
-//     return null;
-//   }
-//
-//   const data = {
-//     created: vuln.created,
-//     published: vuln.publishedAt,
-//     severity: vuln.severity,
-//     vulnerability: vuln.vulnerability,
-//     advisory: vuln.advisory,
-//     source: vuln.source,
-//     link: vuln.link,
-//   };
-//
-//   if (vuln.isDismissed()) {
-//     data.dismissed = vuln.dismissedBy;
-//   }
-//
-//   return data;
-// }
-
-
-/***/ }),
-
-/***/ 725:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const fs = __importStar(__nccwpck_require__(5747));
-const path = __nccwpck_require__(5622), nunjucks = __nccwpck_require__(7006);
-// Default templates as part of the action
-const EMBEDDED_TEMPLATES = __nccwpck_require__.ab + "templates";
-class Template {
-    constructor(templatesDir) {
-        if (!templatesDir) {
-            this.templatesDir = __nccwpck_require__.ab + "templates";
-        }
-        else {
-            this.templatesDir = templatesDir;
-        }
-        this.renderer = nunjucks.configure(this.templatesDir, { autoescape: true });
-    }
-    render(data, template) {
-        const resolvedTemplateFilename = this.getValidatedTemplateFileName(template);
-        const content = this.renderer.render(resolvedTemplateFilename, data);
-        //TODO consider providing intermediate output
-        return content;
-    }
-    getValidatedTemplateFileName(name) {
-        if (fs.existsSync(path.join(this.templatesDir, name))) {
-            return name;
-        }
-        else {
-            // Try our known supported extensions
-            const found = ['html', 'j2'].filter(extension => {
-                return fs.existsSync(path.join(this.templatesDir, `${name}.${extension}`));
-            });
-            if (found.length > 0) {
-                return `${name}.${found[0]}`;
-            }
-        }
-        throw new Error(`Failed to resolve a template file from directory ${this.templatesDir} with name "${name}"`);
-    }
-}
-exports.default = Template;
-
-
-/***/ }),
-
-/***/ 5241:
+/***/ 7351:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -1185,7 +16,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const os = __importStar(__nccwpck_require__(2087));
-const utils_1 = __nccwpck_require__(6321);
+const utils_1 = __nccwpck_require__(5278);
 /**
  * Commands
  *
@@ -1279,9 +110,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const command_1 = __nccwpck_require__(5241);
+const command_1 = __nccwpck_require__(7351);
 const file_command_1 = __nccwpck_require__(717);
-const utils_1 = __nccwpck_require__(6321);
+const utils_1 = __nccwpck_require__(5278);
 const os = __importStar(__nccwpck_require__(2087));
 const path = __importStar(__nccwpck_require__(5622));
 /**
@@ -1520,7 +351,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const fs = __importStar(__nccwpck_require__(5747));
 const os = __importStar(__nccwpck_require__(2087));
-const utils_1 = __nccwpck_require__(6321);
+const utils_1 = __nccwpck_require__(5278);
 function issueCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
     if (!filePath) {
@@ -1538,7 +369,7 @@ exports.issueCommand = issueCommand;
 
 /***/ }),
 
-/***/ 6321:
+/***/ 5278:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -1766,7 +597,7 @@ function isUnixExecutable(stats) {
 
 /***/ }),
 
-/***/ 7351:
+/***/ 7436:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -2130,7 +961,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 var universalUserAgent = __nccwpck_require__(5030);
 var beforeAfterHook = __nccwpck_require__(3682);
-var request = __nccwpck_require__(6234);
+var request = __nccwpck_require__(5712);
 var graphql = __nccwpck_require__(8467);
 var authToken = __nccwpck_require__(334);
 
@@ -2708,7 +1539,7 @@ exports.endpoint = endpoint;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 
-var request = __nccwpck_require__(6234);
+var request = __nccwpck_require__(5712);
 var universalUserAgent = __nccwpck_require__(5030);
 
 const VERSION = "4.5.9";
@@ -4202,7 +3033,7 @@ exports.RequestError = RequestError;
 
 /***/ }),
 
-/***/ 6234:
+/***/ 5712:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -41000,7 +39831,7 @@ Writable.WritableState = WritableState;
 /*<replacement>*/
 
 var internalUtil = {
-  deprecate: __nccwpck_require__(5278)
+  deprecate: __nccwpck_require__(7127)
 };
 /*</replacement>*/
 
@@ -45853,7 +44684,7 @@ exports.getUserAgent = getUserAgent;
 
 /***/ }),
 
-/***/ 5278:
+/***/ 7127:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
@@ -50384,6 +49215,1225 @@ function defaultCallback(err) {
 
 /***/ }),
 
+/***/ 463:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const GitHubCodeScanning_1 = __importDefault(__nccwpck_require__(8688));
+const GitHubDependencies_1 = __importDefault(__nccwpck_require__(2997));
+const SarifReportFinder_1 = __importDefault(__nccwpck_require__(331));
+const ReportData_1 = __importDefault(__nccwpck_require__(3297));
+class DataCollector {
+    constructor(octokit, repo) {
+        if (!octokit) {
+            throw new Error('A GitHub Octokit client needs to be provided');
+        }
+        this.octokit = octokit;
+        if (!repo) {
+            throw new Error('A GitHub repository must be provided');
+        }
+        const parts = repo.split('/');
+        this.repo = {
+            owner: parts[0],
+            repo: parts[1]
+        };
+    }
+    getPayload(sarifReportDir) {
+        const ghDeps = new GitHubDependencies_1.default(this.octokit), codeScanning = new GitHubCodeScanning_1.default(this.octokit), sarifFinder = new SarifReportFinder_1.default(sarifReportDir);
+        return Promise.all([
+            sarifFinder.getSarifFiles(),
+            ghDeps.getAllDependencies(this.repo),
+            ghDeps.getAllVulnerabilities(this.repo),
+            codeScanning.getOpenCodeScanningAlerts(this.repo),
+            codeScanning.getClosedCodeScanningAlerts(this.repo),
+        ]).then(results => {
+            const data = {
+                github: this.repo,
+                sarifReports: results[0],
+                dependencies: results[1],
+                vulnerabilities: results[2],
+                codeScanningOpen: results[3],
+                codeScanningClosed: results[4],
+            };
+            return new ReportData_1.default(data);
+        });
+    }
+}
+exports.default = DataCollector;
+
+
+/***/ }),
+
+/***/ 6399:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const DataCollector_1 = __importDefault(__nccwpck_require__(463));
+const Template_1 = __importDefault(__nccwpck_require__(5777));
+const pdfWriter_1 = __nccwpck_require__(6234);
+const path = __importStar(__nccwpck_require__(5622));
+const io_1 = __nccwpck_require__(7436);
+class ReportGenerator {
+    constructor(config) {
+        this.config = config;
+    }
+    run() {
+        const config = this.config;
+        const collector = new DataCollector_1.default(config.octokit, config.repository);
+        return collector.getPayload(config.sarifReportDirectory)
+            .then(reportData => {
+            const reportTemplate = new Template_1.default(config.templating.directory);
+            return reportTemplate.render(reportData.getJSONPayload(), config.templating.name);
+        })
+            .then(html => {
+            return io_1.mkdirP(config.outputDirectory)
+                .then(() => {
+                return pdfWriter_1.createPDF(html, path.join(config.outputDirectory, 'summary.pdf'));
+            });
+        });
+    }
+}
+exports.default = ReportGenerator;
+
+
+/***/ }),
+
+/***/ 7827:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class CodeScanningAlert {
+    constructor(data) {
+        this.data = data;
+    }
+    get id() {
+        return this.data.number;
+    }
+    get url() {
+        return this.data.html_url;
+    }
+    get created() {
+        return this.data.created_at;
+    }
+    get dismissed() {
+        if (!this.data.dismissed_at) {
+            return null;
+        }
+        const result = {
+            at: this.data.dismissed_at,
+            reason: this.data.dismissed_reason,
+        };
+        if (this.data.dismissed_by) {
+            result.by = {
+                login: this.data.dismissed_by.login,
+                type: this.data.dismissed_by.type,
+                id: this.data.dismissed_by.id,
+            };
+        }
+        return result;
+    }
+    get severity() {
+        // return this.rule ? this.rule.severity : null;
+        return this.rule.severity;
+    }
+    get state() {
+        return this.data.state;
+    }
+    get rule() {
+        return this.data.rule;
+    }
+    get ruleId() {
+        return this.rule.id;
+    }
+    get ruleDescription() {
+        return this.rule.description;
+    }
+    get toolName() {
+        return this.data.tool ? this.data.tool.name : null;
+    }
+    get toolVersion() {
+        return this.data.tool ? this.data.tool.version : null;
+    }
+}
+exports.default = CodeScanningAlert;
+
+
+/***/ }),
+
+/***/ 3857:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class CodeScanningResults {
+    constructor() {
+        this.data = [];
+    }
+    addCodeScanningAlert(alert) {
+        this.data.push(alert);
+    }
+    getTools() {
+        const result = [];
+        this.data.forEach(alert => {
+            const toolName = alert.toolName;
+            if (toolName && result.indexOf(toolName) === -1) {
+                result.push(toolName);
+            }
+        });
+        return result;
+    }
+    getCodeQLScanningAlerts() {
+        return this.data.filter(value => {
+            //TODO this is now reporting CodeQL command-line toolchain as the name of the tool!
+            // Need to follow up on this with GHAS team on what to expect in the future.
+            return `${value.toolName}`.toLowerCase().startsWith('codeql');
+        });
+    }
+}
+exports.default = CodeScanningResults;
+
+
+/***/ }),
+
+/***/ 8688:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const core = __importStar(__nccwpck_require__(2186));
+const CodeScanningAlert_1 = __importDefault(__nccwpck_require__(7827));
+const CodeScanningResults_1 = __importDefault(__nccwpck_require__(3857));
+class GitHubCodeScanning {
+    constructor(octokit) {
+        this.octokit = octokit;
+    }
+    getOpenCodeScanningAlerts(repo) {
+        return getCodeScanning(this.octokit, repo, 'open');
+    }
+    getClosedCodeScanningAlerts(repo) {
+        return getCodeScanning(this.octokit, repo, 'dismissed');
+    }
+}
+exports.default = GitHubCodeScanning;
+function getCodeScanning(octokit, repo, state) {
+    const params = {
+        owner: repo.owner,
+        repo: repo.repo,
+        state: state
+    };
+    return octokit.paginate('GET /repos/:owner/:repo/code-scanning/alerts', params)
+        //@ts-ignore
+        .then((alerts) => {
+        core.info(`[✅] GET code-scanning.`);
+        const results = new CodeScanningResults_1.default();
+        alerts.forEach((alert) => {
+            results.addCodeScanningAlert(new CodeScanningAlert_1.default(alert));
+        });
+        return results;
+    }).catch((err) => {
+        core.setFailed("[⚠️] There was an error in code-scanning. Please check the logs: " + err);
+        throw err; // Lançar o erro após logar a falha
+    });
+}
+
+
+/***/ }),
+
+/***/ 7354:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class Dependency {
+    constructor(data) {
+        this.data = data;
+    }
+    get name() {
+        return this.data.node.packageName;
+    }
+    get packageType() {
+        return this.data.node.packageManager;
+    }
+    get version() {
+        return this.data.node.requirements;
+    }
+}
+exports.default = Dependency;
+
+
+/***/ }),
+
+/***/ 2979:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const Dependency_1 = __importDefault(__nccwpck_require__(7354));
+class DependencySet {
+    constructor(data) {
+        this.data = data;
+    }
+    get filename() {
+        return this.data.node.filename;
+    }
+    get count() {
+        return this.data.node.dependenciesCount || 0;
+    }
+    get path() {
+        return this.data.node.blobPath;
+    }
+    get isValid() {
+        return this.parsable && !this.exceededMaxSize;
+    }
+    get parsable() {
+        return this.data.node.parseable;
+    }
+    get exceededMaxSize() {
+        return this.data.node.exceedsMaxSize;
+    }
+    get dependencies() {
+        const deps = this.data.node.dependencies.edges;
+        if (deps) {
+            return deps.map(dep => {
+                return new Dependency_1.default(dep);
+            });
+        }
+        return [];
+    }
+}
+exports.default = DependencySet;
+
+
+/***/ }),
+
+/***/ 7999:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.QUERY_DEPENDENCY_GRAPH = exports.QUERY_SECURITY_VULNERABILITIES = void 0;
+exports.QUERY_SECURITY_VULNERABILITIES = `
+query users($organizationName: String!, $repositoryName: String!, $cursor: String) {
+
+  repository(owner: $organizationName, name: $repositoryName) {
+    vulnerabilityAlerts(first: 100, after: $cursor) {
+      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        createdAt
+        dismisser {
+          login
+          name
+        }
+        dismissedAt
+        dismissReason
+        vulnerableManifestFilename
+        vulnerableRequirements
+        vulnerableManifestPath
+        securityVulnerability{
+          package {
+            ecosystem
+            name
+          }
+          severity
+          vulnerableVersionRange
+        }
+        securityAdvisory{
+          databaseId
+          id
+          summary
+          severity
+          description
+          ghsaId
+          identifiers {
+            type
+            value
+          }
+          permalink
+          publishedAt
+        }
+      }
+    }
+  }
+}
+`;
+exports.QUERY_DEPENDENCY_GRAPH = `
+query ($organizationName: String!, $repositoryName: String!, $cursor: String){
+  repository(owner: $organizationName name: $repositoryName) {
+    name
+    dependencyGraphManifests(first: 100, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
+      edges {
+        node {
+          filename
+          dependenciesCount
+          blobPath
+          exceedsMaxSize
+          parseable
+          dependencies{
+            edges {
+              node {
+                packageName
+                packageManager
+                requirements
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`;
+
+
+/***/ }),
+
+/***/ 2997:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const DependencyTypes_1 = __nccwpck_require__(7999);
+const Vulnerability_1 = __importDefault(__nccwpck_require__(2570));
+const DependencySet_1 = __importDefault(__nccwpck_require__(2979));
+class GitHubDependencies {
+    constructor(octokit) {
+        this.octokit = octokit;
+    }
+    getAllVulnerabilities(repo) {
+        return __awaiter(this, void 0, void 0, function* () {
+            function extractVulnerabilityAlerts(data) {
+                return data.repository.vulnerabilityAlerts.nodes;
+            }
+            const data = yield this.getPaginatedQuery(DependencyTypes_1.QUERY_SECURITY_VULNERABILITIES, { organizationName: repo.owner, repositoryName: repo.repo }, 'repository.vulnerabilityAlerts.pageInfo', extractVulnerabilityAlerts);
+            return data.map(val => {
+                return new Vulnerability_1.default(val);
+            });
+        });
+    }
+    getAllDependencies(repo) {
+        return __awaiter(this, void 0, void 0, function* () {
+            function extractDependencySetData(data) {
+                return data.repository.dependencyGraphManifests.edges;
+            }
+            const data = yield this.getPaginatedQuery(DependencyTypes_1.QUERY_DEPENDENCY_GRAPH, { organizationName: repo.owner, repositoryName: repo.repo }, 'repository.dependencyGraphManifests.pageInfo', extractDependencySetData, { accept: 'application/vnd.github.hawkgirl-preview+json' });
+            return data.map(node => {
+                return new DependencySet_1.default(node);
+            });
+        });
+    }
+    getPaginatedQuery(query, parameters, pageInfoPath, extractResultsFn, headers) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const octokit = this.octokit, results = [], queryParameters = Object.assign({ cursor: null }, parameters);
+            let hasNextPage = false;
+            do {
+                const graphqlParameters = buildGraphQLParameters(query, parameters, headers), queryResult = yield octokit.graphql(graphqlParameters);
+                // @ts-ignore
+                const extracted = extractResultsFn(queryResult);
+                // @ts-ignore
+                results.push(...extracted);
+                const pageInfo = getObject(queryResult, ...pageInfoPath.split('.'));
+                hasNextPage = pageInfo ? pageInfo.hasNextPage : false;
+                if (hasNextPage) {
+                    queryParameters.cursor = pageInfo.endCursor;
+                }
+            } while (hasNextPage);
+            return results;
+        });
+    }
+}
+exports.default = GitHubDependencies;
+function buildGraphQLParameters(query, parameters, headers) {
+    const result = Object.assign(Object.assign({}, (parameters || {})), { query: query });
+    if (headers) {
+        result.headers = headers;
+    }
+    return result;
+}
+function getObject(target, ...path) {
+    if (target !== null && target !== undefined) {
+        const value = target[path[0]];
+        if (path.length > 1) {
+            return getObject(value, ...path.slice(1));
+        }
+        else {
+            return value;
+        }
+    }
+    return null;
+}
+
+
+/***/ }),
+
+/***/ 2570:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class Vulnerability {
+    constructor(data) {
+        this.data = data;
+    }
+    get created() {
+        return this.data.createdAt;
+    }
+    get isDismissed() {
+        return !!this.data.dismisser;
+    }
+    get dismissedBy() {
+        return {
+            user: {
+                login: this.data.dismisser.login,
+                name: this.data.dismisser.name
+            },
+            reason: this.data.dismissReason,
+            at: this.data.dismissedAt,
+        };
+    }
+    get severity() {
+        return this.data.securityVulnerability.severity;
+    }
+    get vulnerability() {
+        return Object.assign({}, this.data.securityVulnerability);
+    }
+    get advisory() {
+        return Object.assign({}, this.data.securityAdvisory);
+    }
+    get source() {
+        return {
+            manifest: this.data.vulnerableManifestFilename,
+            version: this.data.vulnerableRequirements,
+            path: this.data.vulnerableManifestPath
+        };
+    }
+    get publishedAt() {
+        return this.advisory.publishedAt;
+    }
+    get link() {
+        return this.advisory.permalink;
+    }
+}
+exports.default = Vulnerability;
+
+
+/***/ }),
+
+/***/ 6144:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const ReportGenerator_1 = __importDefault(__nccwpck_require__(6399));
+const core = __importStar(__nccwpck_require__(2186));
+const rest_1 = __nccwpck_require__(5375);
+function run() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            core.info(`[✅] Start Action]`);
+            const token = getRequiredInputValue('token');
+            core.info(`[✅] Report Generator]`);
+            const generator = new ReportGenerator_1.default({
+                repository: getRequiredInputValue('repository'),
+                octokit: new rest_1.Octokit({ auth: token }),
+                sarifReportDirectory: getRequiredInputValue('sarifReportDir'),
+                outputDirectory: getRequiredInputValue('outputDir'),
+                templating: {
+                    name: 'summary'
+                }
+            });
+            const file = yield generator.run();
+            console.log(file);
+            core.info(`[✅] End Action]`);
+        }
+        catch (err) {
+            core.warning(`Error: ${err.message}`);
+            core.setFailed(`[⚠️] Error: ${err.message}`);
+        }
+    });
+}
+run();
+function getRequiredInputValue(key) {
+    return core.getInput(key, { required: true });
+}
+
+
+/***/ }),
+
+/***/ 6234:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createPDF = void 0;
+const os = __importStar(__nccwpck_require__(2087));
+const puppeteer = __nccwpck_require__(3435);
+function createPDF(html, file) {
+    const fetcher = puppeteer.createBrowserFetcher({ path: os.tmpdir() });
+    return fetcher.download('782078') //TODO need to store and inject this
+        .then(revisionInfo => {
+        return puppeteer.launch({ executablePath: revisionInfo.executablePath })
+            .then(browser => {
+            return browser.newPage()
+                .then(page => {
+                return page.setContent(html)
+                    .then(() => {
+                    return page.pdf({ path: file, format: 'A4' });
+                });
+            })
+                .then(() => {
+                return browser.close();
+            });
+        })
+            .then(() => {
+            return file;
+        });
+    });
+}
+exports.createPDF = createPDF;
+;
+
+
+/***/ }),
+
+/***/ 8259:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const CWE_REGEX = /external\/cwe\/(cwe-.*)/;
+class CodeScanningRule {
+    constructor(sarifRule) {
+        this.sarifRule = sarifRule;
+        this.cwes = getCWEs(sarifRule.properties.tags);
+    }
+    get id() {
+        return this.sarifRule.id;
+    }
+    get name() {
+        return this.sarifRule.name;
+    }
+    get shortDescription() {
+        return this.sarifRule.shortDescription.text;
+    }
+    get description() {
+        return this.sarifRule.fullDescription.text;
+    }
+    get tags() {
+        return this.sarifRule.properties.tags;
+    }
+    get severity() {
+        return this.sarifRule.properties['problem.severity'];
+    }
+    get precision() {
+        return this.sarifRule.properties.precision;
+    }
+    get kind() {
+        return this.sarifRule.properties.kind;
+    }
+    get defaultConfigurationLevel() {
+        return this.sarifRule.defaultConfiguration.level;
+    }
+}
+exports.default = CodeScanningRule;
+function getCWEs(tags) {
+    const cwes = [];
+    if (tags) {
+        tags.forEach(tag => {
+            const match = CWE_REGEX.exec(tag);
+            if (match) {
+                // @ts-ignore
+                cwes.push(match[1]);
+            }
+        });
+    }
+    return cwes.sort();
+}
+
+
+/***/ }),
+
+/***/ 6986:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const CodeScanningRule_1 = __importDefault(__nccwpck_require__(8259));
+class SarifReport {
+    constructor(data) {
+        this.data = data;
+        this.rules = getRules(data) || [];
+    }
+    get cweList() {
+        const result = this.rules.reduce((cwes, rule) => {
+            return cwes.concat(rule.cwes);
+        }, []);
+        return unique(result).sort();
+    }
+}
+exports.default = SarifReport;
+function getRules(report) {
+    let sarifRules = null;
+    if (report.version === '2.1.0') {
+        if (report.runs) {
+            report.runs.forEach(run => {
+                if (run.tool.driver.name === 'CodeQL') { //TODO could support other tools
+                    sarifRules = run.tool.driver.rules;
+                }
+            });
+        }
+    }
+    else {
+        throw new Error(`Unsupported version: ${report.version}`);
+    }
+    return getAppliedRuleDetails(sarifRules);
+}
+function getAppliedRuleDetails(sarifRules) {
+    if (sarifRules) {
+        return sarifRules.map(rule => {
+            return new CodeScanningRule_1.default(rule);
+        });
+    }
+    return null;
+}
+function unique(array) {
+    return array.filter((val, idx, self) => {
+        return self.indexOf(val) === idx;
+    });
+}
+
+
+/***/ }),
+
+/***/ 331:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const path = __importStar(__nccwpck_require__(5622));
+const fs = __importStar(__nccwpck_require__(5747));
+const SarifReport_1 = __importDefault(__nccwpck_require__(6986));
+const core = __importStar(__nccwpck_require__(2186));
+class SarifReportFinder {
+    constructor(dir) {
+        this.dir = dir;
+    }
+    getSarifFiles() {
+        const dir = this.dir, promises = [];
+        if (!fs.existsSync(dir)) {
+            throw new Error(` [✅] SARIF Finder, path "${dir}", does not exist.`);
+        }
+        core.info(` [✅] SARIF File Finder, processing: ${dir}`);
+        if (fs.lstatSync(dir).isDirectory()) {
+            core.info(` [✅] is a directory, looking for files`);
+            const files = fs.readdirSync(dir) // TODO use promises here
+                .filter(f => f.endsWith('.sarif'))
+                .map(f => path.resolve(dir, f));
+            core.info(` [✅] SARIF files detected: ${JSON.stringify(files)}`);
+            if (files) {
+                files.forEach(f => {
+                    promises.push(loadFileContents(f));
+                });
+            }
+        }
+        if (promises.length > 0) {
+            return Promise.all(promises);
+        }
+        else {
+            return Promise.resolve([]);
+        }
+    }
+}
+exports.default = SarifReportFinder;
+function loadFileContents(file) {
+    return fs.promises.open(file, 'r')
+        .then(fileHandle => {
+        return fileHandle.readFile()
+            .then(content => {
+            fileHandle.close();
+            try {
+                core.info(`Parse JSON from SARIF file '${file}'`);
+                return JSON.parse(content.toString('utf8'));
+            }
+            catch (err) {
+                throw new Error(`Failed to parse JSON from SARIF file '${file}': ${err}`);
+            }
+        })
+            .then(data => {
+            return {
+                file: file,
+                payload: new SarifReport_1.default(data),
+            };
+        });
+    });
+}
+
+
+/***/ }),
+
+/***/ 3297:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class ReportData {
+    constructor(data) {
+        this.data = data || {};
+    }
+    get githubRepo() {
+        return this.data.github || {};
+    }
+    get vulnerabilities() {
+        return this.data.vulnerabilities || [];
+    }
+    get dependencies() {
+        return this.data.dependencies || [];
+    }
+    get openDependencyVulnerabilities() {
+        return this.vulnerabilities.filter(vuln => {
+            return !vuln.isDismissed;
+        });
+    }
+    get closedDependencyVulnerabilities() {
+        return this.vulnerabilities.filter(vuln => {
+            return vuln.isDismissed;
+        });
+    }
+    get openCodeScanResults() {
+        return this.data.codeScanningOpen || {};
+    }
+    get closedCodeScanResults() {
+        return this.data.codeScanningClosed || {};
+    }
+    get sarifReports() {
+        return this.data.sarifReports || [];
+    }
+    get codeScanningRules() {
+        const result = {};
+        this.sarifReports.forEach(report => {
+            // Each report is an object of {file, payload} keys
+            const rules = report.payload.rules;
+            if (rules) {
+                rules.forEach(rule => {
+                    result[rule.id] = rule;
+                });
+            }
+        });
+        return result;
+    }
+    getJSONPayload() {
+        const data = {
+            github: this.githubRepo,
+            metadata: {
+                created: new Date().toISOString(),
+            },
+            sca: {
+                dependencies: this.getDependencySummary(),
+                vulnerabilities: {
+                    total: this.openDependencyVulnerabilities.length,
+                    bySeverity: this.getVulnerabilitiesBySeverity()
+                },
+            },
+            scanning: {
+                rules: this.getAppliedCodeScanningRules(),
+                cwe: this.getCWECoverage() || {},
+                results: this.getCodeScanSummary(),
+            }
+        };
+        return data;
+    }
+    getCWECoverage() {
+        const rules = this.getAppliedCodeScanningRules();
+        if (rules) {
+            const result = {};
+            rules.forEach(rule => {
+                const cwes = rule.cwe;
+                if (cwes) {
+                    cwes.forEach(cwe => {
+                        if (!result[cwe]) {
+                            result[cwe] = [];
+                        }
+                        result[cwe].push(rule);
+                    });
+                }
+            });
+            return {
+                cweToRules: result,
+                cwes: Object.keys(result)
+            };
+        }
+        return null;
+    }
+    getDependencySummary() {
+        const unprocessed = [], processed = [], dependencies = {};
+        let totalDeps = 0;
+        this.dependencies.forEach(depSet => {
+            totalDeps += depSet.count;
+            const manifest = {
+                filename: depSet.filename,
+                path: depSet.path
+            };
+            if (depSet.isValid) {
+                processed.push(manifest);
+            }
+            else {
+                unprocessed.push(manifest);
+            }
+            const identifiedDeps = depSet.dependencies;
+            if (identifiedDeps) {
+                identifiedDeps.forEach(dep => {
+                    const type = dep.packageType.toLowerCase();
+                    if (!dependencies[type]) {
+                        dependencies[type] = [];
+                    }
+                    dependencies[type].push({
+                        name: dep.name,
+                        type: dep.packageType,
+                        version: dep.version,
+                    });
+                });
+            }
+        });
+        return {
+            manifests: {
+                processed: processed,
+                unprocessed: unprocessed,
+            },
+            totalDependencies: totalDeps,
+            dependencies: dependencies
+        };
+    }
+    getVulnerabilitiesBySeverity() {
+        const result = {};
+        // Obtain third party artifacts ranked by severity
+        const vulnerabilities = this.openDependencyVulnerabilities;
+        vulnerabilities.forEach(vulnerability => {
+            const severity = vulnerability.severity.toLowerCase();
+            if (!result[severity]) {
+                result[severity] = [];
+            }
+            result[severity].push(vulnerability);
+        });
+        return result;
+    }
+    getAppliedCodeScanningRules() {
+        const rules = this.codeScanningRules;
+        if (rules) {
+            return Object.values(rules).map(rule => {
+                return getRuleData(rule);
+            });
+        }
+        return [];
+    }
+    getCodeScanSummary() {
+        const open = this.openCodeScanResults, closed = this.closedCodeScanResults, rules = this.codeScanningRules;
+        const data = {
+            open: generateAlertSummary(open, rules),
+            closed: generateAlertSummary(closed, rules),
+        };
+        return data;
+    }
+}
+exports.default = ReportData;
+function generateAlertSummary(open, rules) {
+    const result = {};
+    let total = 0;
+    open.getCodeQLScanningAlerts().forEach(codeScanAlert => {
+        const severity = codeScanAlert.severity, matchedRule = rules ? rules[codeScanAlert.ruleId] : null;
+        const summary = {
+            tool: codeScanAlert.toolName,
+            name: codeScanAlert.ruleDescription,
+            state: codeScanAlert.state,
+            created: codeScanAlert.created,
+            url: codeScanAlert.url,
+            rule: {
+                id: codeScanAlert.ruleId,
+            }
+        };
+        if (matchedRule) {
+            summary.rule.details = matchedRule;
+        }
+        if (!result[severity]) {
+            result[severity] = [];
+        }
+        result[severity].push(summary);
+        total++;
+    });
+    return {
+        total: total,
+        scans: result
+    };
+}
+function getRuleData(rule) {
+    return {
+        name: rule.name,
+        //TODO maybe id?
+        severity: rule.severity,
+        precision: rule.precision,
+        kind: rule.kind,
+        shortDescription: rule.shortDescription,
+        description: rule.description,
+        tags: rule.tags,
+        cwe: rule.cwes,
+    };
+}
+//TODO this was not used
+// function getVulnerability(vuln) {
+//   if (!vuln) {
+//     return null;
+//   }
+//
+//   const data = {
+//     created: vuln.created,
+//     published: vuln.publishedAt,
+//     severity: vuln.severity,
+//     vulnerability: vuln.vulnerability,
+//     advisory: vuln.advisory,
+//     source: vuln.source,
+//     link: vuln.link,
+//   };
+//
+//   if (vuln.isDismissed()) {
+//     data.dismissed = vuln.dismissedBy;
+//   }
+//
+//   return data;
+// }
+
+
+/***/ }),
+
+/***/ 5777:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const fs = __importStar(__nccwpck_require__(5747));
+const path = __nccwpck_require__(5622), nunjucks = __nccwpck_require__(7006);
+// Default templates as part of the action
+const EMBEDDED_TEMPLATES = __nccwpck_require__.ab + "templates";
+class Template {
+    constructor(templatesDir) {
+        if (!templatesDir) {
+            this.templatesDir = __nccwpck_require__.ab + "templates";
+        }
+        else {
+            this.templatesDir = templatesDir;
+        }
+        this.renderer = nunjucks.configure(this.templatesDir, { autoescape: true });
+    }
+    render(data, template) {
+        const resolvedTemplateFilename = this.getValidatedTemplateFileName(template);
+        const content = this.renderer.render(resolvedTemplateFilename, data);
+        //TODO consider providing intermediate output
+        return content;
+    }
+    getValidatedTemplateFileName(name) {
+        if (fs.existsSync(path.join(this.templatesDir, name))) {
+            return name;
+        }
+        else {
+            // Try our known supported extensions
+            const found = ['html', 'j2'].filter(extension => {
+                return fs.existsSync(path.join(this.templatesDir, `${name}.${extension}`));
+            });
+            if (found.length > 0) {
+                return `${name}.${found[0]}`;
+            }
+        }
+        throw new Error(`Failed to resolve a template file from directory ${this.templatesDir} with name "${name}"`);
+    }
+}
+exports.default = Template;
+
+
+/***/ }),
+
 /***/ 2982:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -50629,7 +50679,6 @@ module.exports = require("zlib");;
 /******/ 	// module exports must be returned from runtime so entry inlining is disabled
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
-/******/ 	return __nccwpck_require__(4822);
+/******/ 	return __nccwpck_require__(6144);
 /******/ })()
 ;
-//# sourceMappingURL=index.js.map
