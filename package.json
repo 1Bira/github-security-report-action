@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "description": "Generates a report from GitHub CodeQL and Dependency information",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && ncc build ./src/index.ts -o lib",
     "pre-build-exe": "npm run build && ncc build lib/executable.js -o runtime",
     "build-exe-linux-x64": "npm run pre-build-exe && nexe -i runtime/index.js -t linux-x64-12.16.2 -o github-security-report-linux-x64",
     "build-exe-mac-x64": "npm run pre-build-exe && nexe -i runtime/index.js -t mac-x64-12.16.2 -o github-security-report-mac-x64",
@@ -30,7 +30,6 @@
     "@types/mocha": "^8.2.0",
     "@types/node": "^12.19.15",
     "@types/puppeteer-core": "^2.1.0",
-    "@vercel/ncc": "^0.27.0",
     "chai": "^4.2.0",
     "mocha": "^8.2.1",
     "nexe": "^4.0.0-beta.17",
