@@ -21,7 +21,7 @@ jobs:
         run: npm install
 
       - name: Build
-        run: npm run build
+        run: tsc && ncc build ./src/index.ts -o lib
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v2
