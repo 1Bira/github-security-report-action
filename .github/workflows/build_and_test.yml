@@ -17,6 +17,9 @@ jobs:
         with:
           node-version: 12
 
+      - name: Clear Build
+        run: rm -rf dist
+
       - name: Install Dependencies
         run: npm ci
 
