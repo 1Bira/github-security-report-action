@@ -20,27 +20,16 @@ jobs:
       - name: Clear Build
         run: rm -rf dist
 
-      - name: Verify 01
-        run: |
-          pwd
-          ls
-
       - name: Install Dependencies
         run: npm install
 
       - name: Build
         run: npm run build
 
-      - name: Verify 02
-        run: |
-          pwd
-          ls
-          ls src
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: dist
+          name: lib
           path: dist
 
       - name: Test
