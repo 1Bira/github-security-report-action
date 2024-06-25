@@ -26,8 +26,8 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: dist
-          path: .
+          name: lib
+          path: lib
 
       - name: Test
         env:
