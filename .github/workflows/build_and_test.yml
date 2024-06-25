@@ -35,7 +35,7 @@ jobs:
         run: |
           pwd
           ls
-          ls pwd
+          ls src
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v2
